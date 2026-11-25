@@ -1,0 +1,19 @@
+{
+  "name": "rewear-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ReWear — Wear More. Waste Less. Give Every Garment Another Life. Peer-to-peer clothing rental platform launching at Dayananda Sagar University (DSU), Bengaluru.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "db:generate": "npm --prefix backend run prisma:generate",
+    "db:migrate": "npm --prefix backend run prisma:migrate",
+    "db:seed": "npm --prefix backend run prisma:seed"
+  }
+}

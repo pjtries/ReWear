@@ -1,0 +1,326 @@
+// ReWear PostgreSQL Database Schema (Prisma ORM)
+// "Wear More. Waste Less. Give Every Garment Another Life."
+// Launching at Dayananda Sagar University (DSU), Bengaluru
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum KycStatus {
+  UNVERIFIED
+  STUDENT_VERIFIED
+  AADHAAR_KYC_VERIFIED
+}
+
+enum GarmentOccasion {
+  Wedding
+  Party
+  College_Event @map("College Event")
+  Ethnic
+  Formal
+}
+
+enum GarmentSize {
+  XS
+  S
+  M
+  L
+  XL
+  Free_Size @map("Free Size")
+}
+
+enum LuxuryTier {
+  STANDARD
+  HIGH_VALUE_CONCIERGE
+}
+
+enum GarmentStatus {
+  AVAILABLE
+  RENTED
+  IN_CLEANING
+  RETIRED
+}
+
+enum HandoffMode {
+  P2P_MEETUP
+  CONCIERGE_PICKUP
+}
+
+enum PaymentStatus {
+  PENDING
+  ESCROW_HELD
+  RELEASED
+  DISPUTED
+  REFUNDED
+}
+
+enum BookingStatus {
+  REQUESTED
+  APPROVED
+  HANDED_OVER
+  ACTIVE
+  RETURNED
+  COMPLETED
+  CANCELLED
+}
+
+enum ConditionStage {
+  PRE_HANDOFF
+  AT_RETURN
+  DISPUTE_EVIDENCE
+}
+
+enum DisputeResolutionStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum LifecycleEventType {
+  LISTED
+  RENTED
+  CLEANED
+  REPAIRED
+  RESOLD
+  DONATED
+}
+
+enum RoleReviewed {
+  LENDER
+  BORROWER
+}
+
+enum PartnerServiceType {
+  DRY_CLEANING
+  TAILOR_REPAIR
+  RESALE
+  DONATION
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+/// 1. users
+/// Stores student and community members across DSU & Bengaluru.
+/// Security rule: Never store raw Aadhaar numbers; only store tokenized reference.
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  full_name           String    @db.VarChar(120)
+  email               String    @unique @db.VarChar(255)
+  phone               String    @unique @db.VarChar(20)
+  campus_or_area      String    @default("Dayananda Sagar University") @db.VarChar(150)
+  kyc_status          KycStatus @default(UNVERIFIED)
+  kyc_reference_token String?   @db.VarChar(128) // Tokenized digilocker/college-id hash ONLY (no raw Aadhaar)
+  lender_rating       Decimal   @default(5.00) @db.Decimal(3, 2)
+  borrower_rating     Decimal   @default(5.00) @db.Decimal(3, 2)
+  total_reviews       Int       @default(0)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  owned_garments      Garment[]      @relation("GarmentOwner")
+  bookings_as_borrower Booking[]     @relation("BookingBorrower")
+  bookings_as_lender   Booking[]     @relation("BookingLender")
+  condition_logs      ConditionLog[] @relation("ConditionLogger")
+  disputes_raised     Dispute[]      @relation("DisputeRaiser")
+  reviews_given       Review[]       @relation("ReviewAuthor")
+  reviews_received    Review[]       @relation("ReviewTarget")
+
+  @@index([campus_or_area])
+  @@index([kyc_status])
+  @@map("users")
+}
+
+/// 2. garments
+/// Circular wardrobe listings available for peer-to-peer or concierge rental.
+model Garment {
+  id                 String          @id @default(uuid()) @db.Uuid
+  owner_id           String          @db.Uuid
+  title              String          @db.VarChar(180)
+  description        String          @db.Text
+  category           String          @db.VarChar(80)
+  occasion           GarmentOccasion
+  size               GarmentSize
+  brand              String          @db.VarChar(120)
+  retail_value       Decimal         @db.Decimal(10, 2)
+  daily_rental_price Decimal         @db.Decimal(10, 2)
+  suggested_price    Decimal         @db.Decimal(10, 2)
+  security_deposit   Decimal         @db.Decimal(10, 2)
+  luxury_tier        LuxuryTier      @default(STANDARD)
+  care_instructions  String          @db.Text
+  location_tag       String          @db.VarChar(150)
+  status             GarmentStatus   @default(AVAILABLE)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  owner            User             @relation("GarmentOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  images           GarmentImage[]
+  bookings         Booking[]
+  condition_logs   ConditionLog[]
+  lifecycle_events LifecycleEvent[]
+
+  @@index([owner_id])
+  @@index([status, occasion, size])
+  @@index([location_tag])
+  @@index([luxury_tier])
+  @@map("garments")
+}
+
+/// 3. garment_images
+/// Ordered gallery images for each garment.
+model GarmentImage {
+  id            String  @id @default(uuid()) @db.Uuid
+  garment_id    String  @db.Uuid
+  image_url     String  @db.Text
+  display_order Int     @default(0)
+
+  // Relations
+  garment Garment @relation(fields: [garment_id], references: [id], onDelete: Cascade)
+
+  @@index([garment_id, display_order])
+  @@map("garment_images")
+}
+
+/// 4. bookings
+/// Peer-to-peer or concierge rental transactions with escrow and cleaning buffer tracking.
+model Booking {
+  id              String        @id @default(uuid()) @db.Uuid
+  garment_id      String        @db.Uuid
+  borrower_id     String        @db.Uuid
+  lender_id       String        @db.Uuid
+  start_date      DateTime      @db.Date
+  end_date        DateTime      @db.Date
+  buffer_end_date DateTime      @db.Date
+  handoff_mode    HandoffMode   @default(P2P_MEETUP)
+  rental_amount   Decimal       @db.Decimal(10, 2)
+  platform_fee    Decimal       @db.Decimal(10, 2)
+  deposit_amount  Decimal       @db.Decimal(10, 2)
+  payment_status  PaymentStatus @default(PENDING)
+  booking_status  BookingStatus @default(REQUESTED)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  garment        Garment        @relation(fields: [garment_id], references: [id], onDelete: Restrict)
+  borrower       User           @relation("BookingBorrower", fields: [borrower_id], references: [id], onDelete: Restrict)
+  lender         User           @relation("BookingLender", fields: [lender_id], references: [id], onDelete: Restrict)
+  condition_logs ConditionLog[]
+  disputes       Dispute[]
+  reviews        Review[]
+
+  @@index([garment_id, start_date, buffer_end_date])
+  @@index([borrower_id, booking_status])
+  @@index([lender_id, booking_status])
+  @@index([payment_status])
+  @@map("bookings")
+}
+
+/// 5. condition_logs
+/// Mandatory 5-point digital inspection logs before handoff, at return, or during disputes.
+model ConditionLog {
+  id                String         @id @default(uuid()) @db.Uuid
+  booking_id        String         @db.Uuid
+  garment_id        String         @db.Uuid
+  logged_by_user_id String         @db.Uuid
+  stage             ConditionStage
+  photo_urls        Json           @default("[]") @db.JsonB
+  /// JSONB checklist structure: { stains: boolean, tears: boolean, buttons_zippers: boolean, odor: boolean, missing_items: boolean }
+  checklist_json    Json           @db.JsonB
+  notes             String?        @db.Text
+  created_at        DateTime       @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  booking   Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  garment   Garment @relation(fields: [garment_id], references: [id], onDelete: Cascade)
+  logged_by User    @relation("ConditionLogger", fields: [logged_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([booking_id, stage])
+  @@index([garment_id])
+  @@map("condition_logs")
+}
+
+/// 6. disputes
+/// Escrow dispute claims and damage arbitration records.
+model Dispute {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  booking_id               String                  @db.Uuid
+  raised_by_id             String                  @db.Uuid
+  reason                   String                  @db.Text
+  evidence_photos          Json                    @default("[]") @db.JsonB
+  deposit_deduction_amount Decimal                 @default(0.00) @db.Decimal(10, 2)
+  resolution_status        DisputeResolutionStatus @default(OPEN)
+  admin_notes              String?                 @db.Text
+
+  // Relations
+  booking   Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  raised_by User    @relation("DisputeRaiser", fields: [raised_by_id], references: [id], onDelete: Restrict)
+
+  @@index([booking_id])
+  @@index([resolution_status])
+  @@map("disputes")
+}
+
+/// 7. lifecycle_events
+/// Tracks circular fashion passport events and ecological savings (Water & CO2).
+model LifecycleEvent {
+  id                           String             @id @default(uuid()) @db.Uuid
+  garment_id                   String             @db.Uuid
+  event_type                   LifecycleEventType
+  description                  String             @db.Text
+  partner_name                 String?            @db.VarChar(150)
+  estimated_water_saved_liters Decimal            @default(0.00) @db.Decimal(10, 2)
+  estimated_co2_saved_kg       Decimal            @default(0.00) @db.Decimal(10, 2)
+  event_date                   DateTime           @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  garment Garment @relation(fields: [garment_id], references: [id], onDelete: Cascade)
+
+  @@index([garment_id, event_date])
+  @@index([event_type])
+  @@map("lifecycle_events")
+}
+
+/// 8. reviews
+/// Bilateral trust ratings for Lenders and Borrowers after booking completion.
+model Review {
+  id            String       @id @default(uuid()) @db.Uuid
+  booking_id    String       @db.Uuid
+  reviewer_id   String       @db.Uuid
+  reviewee_id   String       @db.Uuid
+  role_reviewed RoleReviewed
+  rating        Int          @db.SmallInt
+  comment       String       @db.Text
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  booking  Booking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  reviewer User    @relation("ReviewAuthor", fields: [reviewer_id], references: [id], onDelete: Restrict)
+  reviewee User    @relation("ReviewTarget", fields: [reviewee_id], references: [id], onDelete: Restrict)
+
+  @@unique([booking_id, reviewer_id, role_reviewed])
+  @@index([reviewee_id, role_reviewed])
+  @@map("reviews")
+}
+
+/// 9. local_partners
+/// Verified dry cleaners, tailors, resale boutiques, and NGOs across Bengaluru neighborhoods.
+model LocalPartner {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String             @db.VarChar(150)
+  service_type   PartnerServiceType
+  area           String             @db.VarChar(120)
+  contact_phone  String             @db.VarChar(20)
+  pricing_note   String             @db.Text
+  verified_badge Boolean            @default(true)
+
+  @@index([area, service_type])
+  @@map("local_partners")
+}

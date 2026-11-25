@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --rewear-teal: #588B8B;
+  --rewear-white: #FFFFFF;
+  --rewear-peach: #FFD5C2;
+  --rewear-tangerine: #F28F3B;
+  --rewear-terracotta: #C8553D;
+  --rewear-black: #000000;
+}
+
+@layer base {
+  body {
+    background-color: #FFFFFF;
+    color: #000000;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Strict Editorial Card Styles */
+  .editorial-card {
+    @apply bg-[#FFFFFF] border border-[#000000] shadow-editorial transition-transform duration-150;
+  }
+
+  .editorial-card-peach {
+    @apply bg-[#FFD5C2] border border-[#000000] shadow-editorial;
+  }
+
+  .editorial-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-[#F28F3B] text-[#000000] font-bold px-4 py-2.5 border border-[#000000] shadow-editorial-sm hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all;
+  }
+
+  .editorial-btn-teal {
+    @apply inline-flex items-center justify-center gap-2 bg-[#588B8B] text-[#FFFFFF] font-bold px-4 py-2.5 border border-[#000000] shadow-editorial-sm hover:translate-x-[1px] hover:translate-y-[1px] transition-all;
+  }
+
+  .editorial-btn-alert {
+    @apply inline-flex items-center justify-center gap-2 bg-[#C8553D] text-[#FFFFFF] font-bold px-4 py-2.5 border border-[#000000] shadow-editorial-sm hover:translate-x-[1px] hover:translate-y-[1px] transition-all;
+  }
+
+  .editorial-badge-teal {
+    @apply inline-flex items-center gap-1.5 bg-[#588B8B] text-[#FFFFFF] text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-[#000000];
+  }
+
+  .editorial-badge-peach {
+    @apply inline-flex items-center gap-1.5 bg-[#FFD5C2] text-[#000000] text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-[#000000];
+  }
+
+  .editorial-badge-terracotta {
+    @apply inline-flex items-center gap-1.5 bg-[#C8553D] text-[#FFFFFF] text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-[#000000];
+  }
+
+  .editorial-input {
+    @apply w-full bg-[#FFFFFF] text-[#000000] border border-[#000000] px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#F28F3B];
+  }
+}
